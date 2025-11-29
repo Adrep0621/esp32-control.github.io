@@ -14,7 +14,7 @@
     
     <div style="margin: 10px 0;">
         <button onclick="conectarMQTT()">Conectar</button>
-        <span id="estado" style="margin-left: 10px;">Desconectado</span>
+        <span id="estado" style="margin-left: 10px; color: red;">Desconectado</span>
     </div>
     
     <div id="log" style="border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: auto; margin-top: 10px;"></div>
@@ -22,54 +22,92 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
     <script>
         let client = null;
+        let conectado = false;
         
         function conectarMQTT() {
+            if (conectado) {
+                agregarLog("✅ Ya estás conectado");
+                return;
+            }
+            
+            agregarLog("🔄 Conectando al broker MQTT...");
+            
             client = new Paho.MQTT.Client(
                 "broker.hivemq.com",
                 8884,
                 "web_" + Math.random().toString(16).substr(2, 8)
             );
             
+            client.onConnectionLost = function(response) {
+                conectado = false;
+                document.getElementById('estado').textContent = "Desconectado";
+                document.getElementById('estado').style.color = "red";
+                agregarLog("❌ Conexión perdida");
+            };
+            
+            client.onMessageArrived = function(message) {
+                agregarLog("📨 Recibido: " + message.payloadString);
+            };
+            
             client.connect({
                 onSuccess: function() {
+                    conectado = true;
                     document.getElementById('estado').textContent = "Conectado";
-                    agregarLog("Conectado al broker");
+                    document.getElementById('estado').style.color = "green";
+                    agregarLog("✅ CONECTADO correctamente");
+                    agregarLog("📡 Listo para enviar mensajes al ESP32");
                 },
-                useSSL: true
+                onFailure: function(error) {
+                    agregarLog("❌ Error de conexión: " + error.errorMessage);
+                },
+                useSSL: true,
+                timeout: 3
             });
         }
         
         function enviarMensaje() {
-            const mensaje = document.getElementById('mensaje').value;
-            if (!mensaje) return;
+            const mensaje = document.getElementById('mensaje').value.trim();
             
-            if (!client || !client.isConnected()) {
-                agregarLog("No conectado");
+            if (!mensaje) {
+                agregarLog("⚠️ Escribe un mensaje primero");
                 return;
             }
             
+            if (!conectado) {
+                agregarLog("⚠️ Primero haz click en 'Conectar'");
+                return;
+            }
+            
+            // Enviar mensaje MQTT
             const topic = "esp32/demo/control";
             const mqttMessage = new Paho.MQTT.Message(mensaje);
             mqttMessage.destinationName = topic;
-            client.send(mqttMessage);
             
-            agregarLog("Enviado: " + mensaje);
+            client.send(mqttMessage);
+            agregarLog("📤 Enviado: '" + mensaje + "'");
+            
+            // Limpiar caja de texto
             document.getElementById('mensaje').value = "";
         }
         
         function agregarLog(texto) {
             const log = document.getElementById('log');
             const tiempo = new Date().toLocaleTimeString();
-            log.innerHTML += `[${tiempo}] ${texto}<br>`;
+            log.innerHTML += `<div>[${tiempo}] ${texto}</div>`;
             log.scrollTop = log.scrollHeight;
         }
         
         // Enviar con Enter
         document.getElementById('mensaje').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') enviarMensaje();
+            if (e.key === 'Enter') {
+                enviarMensaje();
+            }
         });
         
-        agregarLog("Listo. Click en Conectar y envía un mensaje");
+        agregarLog("💡 Instrucciones:");
+        agregarLog("1. Click en 'Conectar'");
+        agregarLog("2. Espera a que diga 'CONECTADO correctamente'");
+        agregarLog("3. Escribe un mensaje y click 'Enviar'");
     </script>
 </body>
 </html>
