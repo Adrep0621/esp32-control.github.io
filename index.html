@@ -8,37 +8,40 @@
     <h1>Enviar Mensaje a ESP32</h1>
     
     <div>
-        <input type="text" id="mensaje" placeholder="Escribe aquí" style="width: 200px; padding: 8px;">
+        <input type="text" id="mensaje" placeholder="Escribe cualquier mensaje" style="width: 250px; padding: 8px;">
         <button onclick="enviarMensaje()" style="padding: 8px 15px;">Enviar</button>
     </div>
     
-    <div style="margin: 10px 0;">
-        <button onclick="conectarMQTT()" style="padding: 8px 15px; background: #4CAF50; color: white;">Conectar</button>
+    <div style="margin: 15px 0;">
+        <button onclick="conectarMQTT()" style="padding: 8px 15px; background: #4CAF50; color: white;">Conectar MQTT</button>
         <button onclick="desconectarMQTT()" style="padding: 8px 15px; background: #f44336; color: white;">Desconectar</button>
         <span id="estado" style="margin-left: 15px; padding: 5px 10px; background: #ffeb3b;">Desconectado</span>
     </div>
     
-    <div id="log" style="border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-top: 20px; background: #f5f5f5;"></div>
+    <div id="log" style="border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; margin-top: 20px; background: #f5f5f5; font-family: monospace; font-size: 14px;"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
     <script>
         let client = null;
         let conectado = false;
         
-        // CONFIGURACIÓN - USAR EL MISMO TOPIC QUE SU ESP32
-        const TOPIC_ESP32 = "esp32/demo/control";
+        // CONFIGURACIÓN IDÉNTICA A SU ESP32
+        const BROKER = "broker.hivemq.com";
+        const BROKER_PORT = 8884; // WebSocket para navegador
+        const TOPIC = "esp32/demo/control";
         
         function conectarMQTT() {
             if (conectado) {
-                agregarLog("✅ Ya estás conectado");
+                agregarLog("✅ Ya estás conectado al broker");
                 return;
             }
             
-            agregarLog("🔄 Conectando a broker MQTT...");
+            agregarLog("🔄 Conectando a " + BROKER + "...");
             
+            // Crear cliente MQTT para Web
             client = new Paho.MQTT.Client(
-                "broker.hivemq.com",
-                8884,
+                BROKER,
+                BROKER_PORT,
                 "web_" + Math.random().toString(16).substr(2, 8)
             );
             
@@ -46,25 +49,27 @@
                 conectado = false;
                 document.getElementById('estado').textContent = "Desconectado";
                 document.getElementById('estado').style.background = "#ffeb3b";
-                agregarLog("❌ Conexión perdida");
+                agregarLog("❌ Conexión perdida con el broker");
             };
             
             client.onMessageArrived = function(message) {
-                agregarLog("📨 ESP32 responde: " + message.payloadString);
+                agregarLog("📨 Mensaje recibido: " + message.payloadString);
             };
             
+            // Conectar al broker
             client.connect({
                 onSuccess: function() {
                     conectado = true;
                     document.getElementById('estado').textContent = "Conectado ✓";
                     document.getElementById('estado').style.background = "#4CAF50";
                     document.getElementById('estado').style.color = "white";
-                    agregarLog("✅ CONECTADO a broker.hivemq.com");
-                    agregarLog("📡 Topic: " + TOPIC_ESP32);
+                    agregarLog("✅ CONECTADO a: " + BROKER);
+                    agregarLog("📡 Suscrito al topic: " + TOPIC);
                     agregarLog("🚀 Listo para enviar mensajes al ESP32");
                 },
                 onFailure: function(error) {
-                    agregarLog("❌ Error: " + error.errorMessage);
+                    agregarLog("❌ Error de conexión: " + error.errorMessage);
+                    agregarLog("💡 Recarga la página e intenta nuevamente");
                 },
                 useSSL: true,
                 timeout: 5
@@ -74,7 +79,10 @@
         function desconectarMQTT() {
             if (client && conectado) {
                 client.disconnect();
-                agregarLog("🔌 Desconectado");
+                conectado = false;
+                document.getElementById('estado').textContent = "Desconectado";
+                document.getElementById('estado').style.background = "#ffeb3b";
+                agregarLog("🔌 Desconectado del broker");
             }
         }
         
@@ -87,17 +95,21 @@
             }
             
             if (!conectado) {
-                agregarLog("⚠️ Click en [Conectar] primero");
+                agregarLog("⚠️ Primero haz click en 'Conectar MQTT'");
                 return;
             }
             
-            // ENVIAR AL TOPIC EXACTO DE SU ESP32
+            // Enviar mensaje al MISMO topic que su ESP32
             const mqttMessage = new Paho.MQTT.Message(mensaje);
-            mqttMessage.destinationName = TOPIC_ESP32;
+            mqttMessage.destinationName = TOPIC;
             
             client.send(mqttMessage);
-            agregarLog("📤 Enviado a ESP32: '" + mensaje + "'");
+            agregarLog("📤 ENVIADO: '" + mensaje + "'");
+            agregarLog("   ↳ Topic: " + TOPIC);
+            
+            // Limpiar y enfocar la caja de texto
             document.getElementById('mensaje').value = "";
+            document.getElementById('mensaje').focus();
         }
         
         function agregarLog(texto) {
@@ -107,7 +119,7 @@
             log.scrollTop = log.scrollHeight;
         }
         
-        // Enviar con Enter
+        // Enviar con la tecla Enter
         document.getElementById('mensaje').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 enviarMensaje();
@@ -115,15 +127,16 @@
         });
         
         // Mensaje inicial
-        agregarLog("💡 Instrucciones:");
-        agregarLog("1. Click en [Conectar]");
+        agregarLog("💡 INSTRUCCIONES:");
+        agregarLog("1. Click en [Conectar MQTT]");
         agregarLog("2. Escribe cualquier mensaje");
-        agregarLog("3. Click en [Enviar]");
-        agregarLog("4. El ESP32 lo recibirá inmediatamente");
+        agregarLog("3. Click en [Enviar] o presiona Enter");
+        agregarLog("4. Tu ESP32 recibirá el mensaje inmediatamente");
         agregarLog("");
-        agregarLog("🔧 Configuración:");
-        agregarLog("Broker: broker.hivemq.com:8884");
-        agregarLog("Topic: " + TOPIC_ESP32);
+        agregarLog("🔧 CONFIGURACIÓN ACTUAL:");
+        agregarLog("Broker: " + BROKER);
+        agregarLog("Topic: " + TOPIC);
+        agregarLog("Puerto WebSocket: " + BROKER_PORT);
     </script>
 </body>
 </html>
