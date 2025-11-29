@@ -25,13 +25,16 @@
         let client = null;
         let conectado = false;
         
+        // CONFIGURACIÓN - USAR EL MISMO TOPIC QUE SU ESP32
+        const TOPIC_ESP32 = "esp32/demo/control";
+        
         function conectarMQTT() {
             if (conectado) {
                 agregarLog("✅ Ya estás conectado");
                 return;
             }
             
-            agregarLog("🔄 Conectando...");
+            agregarLog("🔄 Conectando a broker MQTT...");
             
             client = new Paho.MQTT.Client(
                 "broker.hivemq.com",
@@ -47,7 +50,7 @@
             };
             
             client.onMessageArrived = function(message) {
-                agregarLog("📨 ESP32 dice: " + message.payloadString);
+                agregarLog("📨 ESP32 responde: " + message.payloadString);
             };
             
             client.connect({
@@ -56,11 +59,12 @@
                     document.getElementById('estado').textContent = "Conectado ✓";
                     document.getElementById('estado').style.background = "#4CAF50";
                     document.getElementById('estado').style.color = "white";
-                    agregarLog("✅ CONECTADO - Listo para enviar");
+                    agregarLog("✅ CONECTADO a broker.hivemq.com");
+                    agregarLog("📡 Topic: " + TOPIC_ESP32);
+                    agregarLog("🚀 Listo para enviar mensajes al ESP32");
                 },
                 onFailure: function(error) {
                     agregarLog("❌ Error: " + error.errorMessage);
-                    agregarLog("💡 Intenta recargar la página");
                 },
                 useSSL: true,
                 timeout: 5
@@ -78,21 +82,21 @@
             const mensaje = document.getElementById('mensaje').value.trim();
             
             if (!mensaje) {
-                agregarLog("⚠️ Escribe algo primero");
+                agregarLog("⚠️ Escribe un mensaje primero");
                 return;
             }
             
             if (!conectado) {
-                agregarLog("⚠️ Click en CONECTAR primero");
+                agregarLog("⚠️ Click en [Conectar] primero");
                 return;
             }
             
-            const topic = "esp32/mensajes";
+            // ENVIAR AL TOPIC EXACTO DE SU ESP32
             const mqttMessage = new Paho.MQTT.Message(mensaje);
-            mqttMessage.destinationName = topic;
+            mqttMessage.destinationName = TOPIC_ESP32;
             
             client.send(mqttMessage);
-            agregarLog("📤 Enviado: " + mensaje);
+            agregarLog("📤 Enviado a ESP32: '" + mensaje + "'");
             document.getElementById('mensaje').value = "";
         }
         
@@ -111,11 +115,15 @@
         });
         
         // Mensaje inicial
-        agregarLog("💡 Para empezar:");
+        agregarLog("💡 Instrucciones:");
         agregarLog("1. Click en [Conectar]");
-        agregarLog("2. Escribe un mensaje");
+        agregarLog("2. Escribe cualquier mensaje");
         agregarLog("3. Click en [Enviar]");
-        agregarLog("4. El ESP32 lo recibirá en 'esp32/mensajes'");
+        agregarLog("4. El ESP32 lo recibirá inmediatamente");
+        agregarLog("");
+        agregarLog("🔧 Configuración:");
+        agregarLog("Broker: broker.hivemq.com:8884");
+        agregarLog("Topic: " + TOPIC_ESP32);
     </script>
 </body>
 </html>
